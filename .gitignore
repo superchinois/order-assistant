@@ -1,0 +1,87 @@
+# --- Secrets & Environment ---
+# Never commit real credentials. Only the .env.example templates are safe to track.
+.env
+.env.*
+!.env.example
+app/.env
+app/.env.*
+*.pem
+*.key
+*.crt
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.coverage.xml
+.jupyter/
+
+# --- Streamlit ---
+.streamlit/
+*.streamlit
+.streamlit/secrets.toml
+
+# --- Virtual environments ---
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+
+# --- IDE / Editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# --- Logs / temp ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+tmp/
+temp/
+
+# --- Backup files ---
+*.bak
+*.orig
+*.rej
+*.tmp
+
+# --- Data / runtime (keep source CSVs, ignore generated ones) ---
+# app/bank_partner_mapping.csv is tracked source data.
+
+# --- Docker (build context should be controlled by .dockerignore too) ---
+docker-compose.override.yml

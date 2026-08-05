@@ -1,0 +1,17 @@
+services:
+  mystreamlit:
+    build: .
+    image: streamlit:latest
+    ports:
+      - "${PORT}:8501"
+    networks:
+      - my-net
+    #volumes:
+    #  - /home/superchinois/docker/streamlit/app:/app:z
+    # Inject the whole .env file as OS environment variables into the
+    # container. config_utils.env_config() reads these via os.environ.
+    env_file:
+      - .env
+networks:
+  my-net:
+    external: true

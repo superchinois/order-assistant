@@ -1,0 +1,30 @@
+# Build context exclusion — keep Docker images lean and keep secrets out.
+# NOTE: .env is loaded by docker-compose at runtime (env_file), NOT baked into the image.
+
+# Version control / editor
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Secrets (never copy into the image)
+.env
+.env.*
+!.env.example
+**/.env
+*.pem
+*.key
+*.crt
+
+# Python caches & virtualenvs
+**/__pycache__
+*.pyc
+venv
+.venv
+env
+.env
+
+# Build artifacts
+*.log
+.DS_Store
