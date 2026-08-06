@@ -9,6 +9,17 @@ import numpy as np
 import datetime as dt
 from compose import compose
 
+def normalize_itemcode(dataframe):
+    """Coerce the 'itemcode' column to string.
+
+    MongoDB can store the itemcode field with mixed types (e.g. binary bytes
+    and bool for empty/missing values), which breaks Streamlit's Arrow
+    serialization. Converting to str makes the column homogeneous.
+    """
+    if 'itemcode' in dataframe.columns:
+        dataframe['itemcode'] = dataframe['itemcode'].astype(str)
+    return dataframe
+
 def path_to(folder):
     outputs_folder=folder
     def _join_filename(filename):

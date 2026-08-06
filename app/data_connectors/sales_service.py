@@ -136,6 +136,7 @@ def pivot_(dataframe):
         columns_fields=["timestamp"]
         pvdf = pd.pivot_table(dataframe, index=index_fields,values=values_fields, columns=columns_fields,aggfunc=['sum'], fill_value=0)
         pivotted = pd.DataFrame(pvdf.to_records())
+        pivotted = od.normalize_itemcode(pivotted)
         display_date_format = set_convert_date("%a %m-%d")
         renamed_array = _map(lambda x: {x:eval(x)[-1]},pivotted.columns.tolist()[start_date_pos:])
         reordered_dates = _map(lambda x: list(x.values()), renamed_array)
@@ -182,5 +183,5 @@ def compute_metrics(dataframe):
         name = window[1]
         metrics.append(pd.DataFrame(dataframe.iloc[:,wind[0]:wind[1]].mean(axis=1), columns=[name]))
     metrics.append(pd.DataFrame(_map(lambda x: f"{x}", dataframe.iloc[:, 3:9].values[:,::-1].tolist()), columns=['daily_sales_last_6d']))
-    return pd.concat([dataframe[['item_id', 'itemcode', 'dscription']], *metrics], axis=1)
+    return od.normalize_itemcode(pd.concat([dataframe[['item_id', 'itemcode', 'dscription']], *metrics], axis=1))
 

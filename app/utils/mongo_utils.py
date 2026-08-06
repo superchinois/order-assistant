@@ -212,6 +212,7 @@ class CacheDao:
             NB_WEEKS=4
             pvdf = pd.pivot_table(df, index=index_fields,values=values_fields, columns=columns_fields,aggfunc=['sum'], fill_value=0)
             outputDf=pd.DataFrame(pvdf.to_records())
+            outputDf = od.normalize_itemcode(outputDf)
             column_labels = df["c"].unique().tolist()
             column_labels.sort(reverse=True)
             labels_count=len(column_labels)

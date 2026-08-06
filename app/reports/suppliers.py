@@ -42,6 +42,7 @@ def pivot_(dataframe):
         columns_fields=["timestamp"]
         pvdf = pd.pivot_table(dataframe, index=index_fields,values=values_fields, columns=columns_fields,aggfunc=['sum'], fill_value=0)
         pivotted = pd.DataFrame(pvdf.to_records())
+        pivotted = od.normalize_itemcode(pivotted)
         display_date_format = set_convert_date("%a %m-%d")
         renamed_array = _map(lambda x: {x:eval(x)[-1]},pivotted.columns.tolist()[start_date_pos:])
         reordered_dates = _map(lambda x: list(x.values()), renamed_array)
