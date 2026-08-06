@@ -1,14 +1,14 @@
-FROM python:3.14-slim-trixie
+FROM python:3.12-slim
 
 RUN apt-get update -y
 RUN apt-get install -y libpython3-dev freetds-dev libpq-dev build-essential curl git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ./requirements.txt /app/requirements.txt
+COPY ./requirements.lock /app/requirements.lock
 COPY ./app /app
 WORKDIR /app
 RUN pip3 install Cython 
-RUN pip3 install -r requirements.txt
+RUN pip3 install -r requirements.lock
 
 EXPOSE 8501
 

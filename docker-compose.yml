@@ -1,7 +1,6 @@
 services:
   mystreamlit:
     build: .
-    image: streamlit:latest
     ports:
       - "${PORT}:8501"
     networks:
