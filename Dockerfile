@@ -5,10 +5,13 @@ RUN apt-get install -y libpython3-dev freetds-dev libpq-dev build-essential curl
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./requirements.lock /app/requirements.lock
-COPY ./app /app
+
 WORKDIR /app
+
 RUN pip3 install Cython 
 RUN pip3 install -r requirements.lock
+
+COPY ./app /app
 
 EXPOSE 8501
 

@@ -41,10 +41,14 @@ def get_bank_statement_values(recent_rows):
 			return ''
 	
 	for row in recent_rows.itertuples():
+		if hasattr(row, 'info'):
+			rowInfo = row.info
+		else:
+			rowInfo = []
 		if hasattr(row, 'Libelle'):
-			odoo_notes = " - ".join([row.Libelle, row.Reference, *row.info])
+			odoo_notes = " - ".join([row.Libelle, row.Reference, *rowInfo])
 		elif hasattr(row, 'Reference'):
-			odoo_notes = " - ".join([row.Reference, *row.info])
+			odoo_notes = " - ".join([row.Reference, *rowInfo])
 		else:
 			odoo_notes = ""
 		row_values.append([row.virdate, row.ref, assign_partner(row), row.debit, row.credit, odoo_notes])
@@ -88,7 +92,8 @@ def test_filter_row_elements(rows):
 	return result
 
 def read_file(file):
-	headers_row_offset=13
+	headers_row_offset=16
+	TOTAL_COL=18
 	releve = pd.read_excel(file, sheet_name=0, skiprows=headers_row_offset)
 	bank_data = extract_data_from(releve)
 	bloc_indexes = list(itertools.pairwise(_map(nth(0),od._filter(lambda r: len(r[1][0])>0, enumerate(bank_data)))))
@@ -102,7 +107,7 @@ def read_file(file):
 	recent_rows['ref'] = [" ".join(r.ref.split(' ')[0:2]) for r in recent_rows.itertuples()]
 	odoo_bank_stmt_fields=['date', 'partner_id', 'amount', 'payment_ref', 'narration', 'statement_id']
 	odoo_values = get_odoo_values(get_bank_statement_values(recent_rows))
-	total_row = _filter(compose(od._eq('TOTAL'), od.nth(16)), releve.values.tolist())[0]
+	total_row = _filter(compose(od._eq('TOTAL'), od.nth(TOTAL_COL)), releve.values.tolist())[0]
 	total = _filter(lambda x: x==x, total_row)
 	return pd.DataFrame([{k:v for k,v in zip(odoo_bank_stmt_fields, values)} for values in odoo_values]), total
 uploaded_file = st.file_uploader("Choose a bank file")
