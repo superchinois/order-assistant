@@ -7,6 +7,7 @@ import datetime as dt
 import pandas as pd
 import itertools
 
+st.set_page_config(layout="wide")
 st.title("Promos")
 
 odoo_cache = init_odoo_cache()
@@ -58,11 +59,12 @@ def filter_rules_for_date(current_date, rules):
 cash_pricelist={'name': 'Cash', 'id': 1}
 rules = gather_rules_from(cash_pricelist, all_pricelists)
 rules_to_copy = filter_rules_for_date(today, rules)
-rules_to_copy = merge_into(rules_to_copy, odoo_cache.items.to_dict(), 'product_tmpl_id', ['categ_id', 'name'])
+rules_to_copy = merge_into(rules_to_copy, odoo_cache.items.to_dict(), 'product_tmpl_id', ['categ_id', 'name', 'onhand'])
 od.modify_rows(rules_to_copy, {
-    'categ_id': lambda x: x['categ_id'][1] if x['categ_id'] else False
+    'categ_id': lambda x: x['categ_id'][1] if x['categ_id'] else False,
+    'date_end': lambda x: str(x['date_end'])[:10] if x['date_end'] else '\u2014'
 })
-promos_du_jour = pd.DataFrame(rules_to_copy).loc[:, ['name', 'categ_id', 'final_discount_price', 'date_end']]
+promos_du_jour = pd.DataFrame(rules_to_copy).loc[:, ['name', 'categ_id', 'final_discount_price', 'date_end', 'onhand']]
 
 if not promos_du_jour.empty:
 	categories = promos_du_jour.categ_id.unique().tolist()
@@ -74,4 +76,4 @@ if not promos_du_jour.empty:
 		else:
 			filtered_promos = promos_du_jour.sort_values(by=['categ_id', 'name'])
 
-	st.dataframe(filtered_promos)
+	st.dataframe(filtered_promos, hide_index=True)
