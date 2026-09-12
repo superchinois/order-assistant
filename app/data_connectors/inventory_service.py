@@ -52,11 +52,17 @@ def get_stock_quantities(odoo_api):
 def get_stock_values(stocks, item_id):
     s2stock  = stocks['s2']
     s1stock  = stocks['s1']
+    lgsstock = stocks.get('lgs', {})
+    rdtstock = stocks.get('rdt', {})
+    badstock = stocks.get('bad', {})
     extstock = stocks['extw']
     s2   = s2stock[item_id] if item_id in s2stock else 0
     s1   = s1stock[item_id] if item_id in s1stock else 0
+    lgs  = lgsstock[item_id] if item_id in lgsstock else 0
+    rdt  = rdtstock[item_id] if item_id in rdtstock else 0
+    bad  = badstock[item_id] if item_id in badstock else 0
     extw = extstock[item_id] if item_id in extstock else 0
-    return [s2, s1, extw]
+    return [s2, s1, lgs, rdt, bad, extw]
 
 
 
@@ -73,8 +79,18 @@ class InventoryService:
         od.modify_rows(_filter(_and([od.take_fun(od._lt)('quantity', 0),od.take_nth_eq('warehouse_id',0,1)]), squants),{'quantity':lambda x: 0})
         s2_stock  = filter_stock_quants(self.odoo_cache ,squants, ['s/s/2_'])
         s1_stock  = filter_stock_quants(self.odoo_cache ,squants, ['s/s/1_'])
+        lgs_stock = filter_stock_quants(self.odoo_cache ,squants, ['LGS'])
+        rdt_stock = filter_stock_quants(self.odoo_cache ,squants, ['RDT'])
+        bad_stock = filter_stock_quants(self.odoo_cache ,squants, ['BAD'])
         ext_stock = filter_stock_quants(self.odoo_cache ,squants, ['LGS','RDT', 'BAD'])
-        stocks    = {k:v for k,v in zip(['s2', 's1', 'extw'], [s2_stock, s1_stock, ext_stock])}
+        stocks    = {
+            's2': s2_stock,
+            's1': s1_stock,
+            'lgs': lgs_stock,
+            'rdt': rdt_stock,
+            'bad': bad_stock,
+            'extw': ext_stock,
+        }
         return stocks
 
     def get_variant(self, item_id):
@@ -82,7 +98,7 @@ class InventoryService:
 
     def build_stock_merge(self, dataframe, stocks):
         urgent_df = dataframe.merge(pd.DataFrame([[r.item_id]+get_stock_values(stocks, self.get_variant(r.item_id)) for r in dataframe.itertuples()]
-                , columns=['item_id', 's2', 's1','ext_wh']), on='item_id', how='inner')
+                , columns=['item_id', 's2', 's1', 'lgs', 'rdt', 'bad', 'ext_wh']), on='item_id', how='inner')
         urgent_df.loc[:,'day_cover'] = (urgent_df.loc[:,'s2']/urgent_df.loc[:,'7d']).round(2)
         return urgent_df
 

@@ -38,7 +38,7 @@ class LocalSuppliersProjection(ProjectionStrategy):
     def compute(self, trends_df, masterdata):
         local_ordered = get_ordered_local_itemids(self.odoo_cache, self.purchase_create_date, self._local_suppliers)
         included_suppliers = self._local_suppliers
-        local_filter = "day_cover<10 and supplier in @included_suppliers and item_id not in @local_ordered"
+        local_filter = "supplier in @included_suppliers and item_id not in @local_ordered"
         return super().compute(trends_df, masterdata).query(local_filter)
 
 class WarehouseItemsProjection(ProjectionStrategy):

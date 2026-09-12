@@ -3,12 +3,16 @@ import io
 import datetime as dt
 from zoneinfo import ZoneInfo
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import utils.function_utils as od
+import utils.mongo_utils as mu
 from utils.config_utils import init_odoo_cache, init_mongo_dao, env_config
 from services.report_builder import ReportBuilder
 from data_connectors.sales_service import WarehouseItemsProjection
 
 output_cols = od.build_fields("""tmpl_id
+supplier
 itemcode
 dscription
 s2
@@ -18,6 +22,9 @@ prev7d
 14d
 prev14d
 s1
+lgs
+rdt
+bad
 ext_wh""")
 output_cols_proj=output_cols+['proj7d', 'proj14d','daily_sales_last_6d']
 
@@ -53,19 +60,41 @@ if "report_xlsx_" in st.session_state:
 
 if "report_data_" in st.session_state:
     summary, trends = st.session_state["report_data_"]
-    df_event = st.dataframe(summary, key="summary", on_select="rerun")
+    df_event = st.dataframe(
+        summary,
+        key="summary_wh",
+        on_select="rerun",
+        selection_mode="multi-row",
+    )
     rows_selection = df_event.selection["rows"]
-    if len(rows_selection)>0:
-        selected_row = rows_selection[0]
-        supplier_name = summary.iloc[selected_row,:].supplier
-        
-        st.subheader(f"Articles from {supplier_name}")
-        supplier_trends = trends.query("supplier== @supplier_name")
-        
+    if len(rows_selection) > 0:
+        selected_suppliers = summary.iloc[rows_selection]["supplier"].tolist()
+        if len(selected_suppliers) == 1:
+            st.subheader(f"Articles from {selected_suppliers[0]}")
+        else:
+            suppliers_list_str = ", ".join(selected_suppliers)
+            st.subheader(f"Articles ({len(selected_suppliers)} fournisseurs sélectionnés : {suppliers_list_str})")
+
+        supplier_trends = trends.query("supplier in @selected_suppliers").sort_values(
+            by=["supplier", "day_cover"]
+        )
+
         def highlight_low_cover(row):
-            return ['color: red; font-weight: bold' if col == 'dscription' and pd.notna(row.get('day_cover')) and row.get('day_cover') < cutoff else '' for col in row.index]
-            
-        st.dataframe(
+            styles = [''] * len(row.index)
+            cover = row.get('day_cover')
+            if pd.isna(cover):
+                return styles
+            for i, col in enumerate(row.index):
+                if col == 'dscription' and cover < 2:
+                    styles[i] = 'color: red; font-weight: bold'
+                elif col == 'day_cover':
+                    if cover < 2:
+                        styles[i] = 'color: red; font-weight: bold'
+                    elif cover < cutoff:
+                        styles[i] = 'color: orange; font-weight: bold'
+            return styles
+
+        df_event_trends = st.dataframe(
             supplier_trends.loc[:, output_cols_proj]
             .style.apply(highlight_low_cover, axis=1)
             .format({
@@ -76,8 +105,68 @@ if "report_data_" in st.session_state:
                 "14d": "{:.2f}",
                 "prev14d": "{:.2f}",
                 "s1": "{:.2f}",
+                "lgs": "{:.2f}",
+                "rdt": "{:.2f}",
+                "bad": "{:.2f}",
                 "ext_wh": "{:.2f}",
                 "proj7d": "{:.0f}",
                 "proj14d": "{:.0f}",
-            })
+            }),
+            on_select="rerun",
+            selection_mode="single-row",
+            key="trends_wh",
         )
+
+        trends_rows = df_event_trends.selection["rows"]
+        if len(trends_rows) > 0 and trends_rows[0] < len(supplier_trends):
+            selected_trend_row = trends_rows[0]
+            selected_item = supplier_trends.iloc[selected_trend_row]
+            variant_id = int(selected_item.item_id)
+            itemname = selected_item.dscription
+
+            odoo_cache = init_odoo_cache()
+            mongo_dao = init_mongo_dao()
+            today_date = mu.reset_to_midnight(dt.datetime.now())
+            since_date = mu.getStartDateOfPeriod(today_date, 10)
+            daily_data = list(mongo_dao.apply_aggregate(*mu.stock_moves_for_itemcodes([variant_id], since_date, today_date)))
+
+            if daily_data:
+                df_raw = pd.DataFrame(daily_data)
+                df_raw['displayed_date'] = pd.to_datetime(df_raw['timestamp']).dt.strftime('%a %m-%d')
+
+                # Map partner_id to customer name (same pattern as history.py)
+                def get_cardname(pid):
+                    if pid:
+                        result = odoo_cache.partners.by_id(pid)
+                        if isinstance(result, dict) and 'name' in result:
+                            return result['name']
+                    return 'Client Divers'
+                df_raw['cardname'] = df_raw['partner_id'].apply(get_cardname)
+
+                df_daily = df_raw.groupby('timestamp')['quantity'].sum().reset_index()
+                df_daily['timestamp'] = pd.to_datetime(df_daily['timestamp'])
+                df_daily = df_daily.set_index('timestamp').sort_index()
+
+                # Reindex to fill missing days with 0
+                full_range = pd.date_range(df_daily.index.min(), today_date, freq='D')
+                df_daily = df_daily.reindex(full_range, fill_value=0)
+                df_daily.index.name = 'timestamp'
+                df_daily = df_daily.reset_index()
+
+                df_daily['displayed_date'] = df_daily['timestamp'].dt.strftime('%a %m-%d')
+
+                st.subheader(f"Ventes quotidiennes - {itemname}")
+                fig = px.bar(df_daily, x='displayed_date', y='quantity')
+                df_daily['MA5'] = df_daily['quantity'].rolling(window=5, min_periods=1).mean()
+                fig.add_trace(go.Scatter(
+                    x=df_daily['displayed_date'], y=df_daily['MA5'],
+                    mode='lines', name='Moyenne mobile 5j',
+                    line=dict(color='orange', width=2),
+                ))
+                event = st.plotly_chart(fig, on_select='rerun', key="chart_wh")
+                if event and len(event['selection']['points']) > 0:
+                    selected_category = event['selection']['points'][0]['x']
+                    selected_item_rows = df_raw.query(f"displayed_date=='{selected_category}'")
+                    st.dataframe(selected_item_rows.loc[:, ['cardname', 'quantity']].sort_values(by=['quantity'], ascending=False))
+    else:
+        st.info("Sélectionnez un ou plusieurs fournisseurs dans le tableau ci-dessus pour afficher leurs articles.")

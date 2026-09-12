@@ -177,12 +177,41 @@ if "report_data" in st.session_state:
     if len(rows_selection)>0:
         selected_row = rows_selection[0]
         supplier_name = summary.iloc[selected_row,:].supplier
-        filtered_day=6
-        st.subheader(f"Articles from {supplier_name} (Couverture < {filtered_day})")
-        supplier_trends = trends.query(f"supplier== @supplier_name and day_cover<{filtered_day}")
-        
+
+        cutoff_choice = st.radio(
+            "Couverture de stock :",
+            options=["< 6 jours", "< 12 jours", "Tous les articles"],
+            index=0,
+            horizontal=True,
+            key="cutoff_choice",
+        )
+
+        if cutoff_choice == "< 6 jours":
+            supplier_trends = trends.query("supplier == @supplier_name and day_cover < 6")
+            header_suffix = "Couverture < 6 jours"
+        elif cutoff_choice == "< 12 jours":
+            supplier_trends = trends.query("supplier == @supplier_name and day_cover < 12")
+            header_suffix = "Couverture < 12 jours"
+        else:
+            supplier_trends = trends.query("supplier == @supplier_name")
+            header_suffix = "Tous les articles"
+
+        st.subheader(f"Articles from {supplier_name} ({header_suffix})")
+
         def highlight_low_cover(row):
-            return ['color: red; font-weight: bold' if col == 'dscription' and pd.notna(row.get('day_cover')) and row.get('day_cover') < 2 else '' for col in row.index]
+            styles = [''] * len(row.index)
+            cover = row.get('day_cover')
+            if pd.isna(cover):
+                return styles
+            for i, col in enumerate(row.index):
+                if col == 'dscription' and cover < 2:
+                    styles[i] = 'color: red; font-weight: bold'
+                elif col == 'day_cover':
+                    if cover < 2:
+                        styles[i] = 'color: red; font-weight: bold'
+                    elif cover < 6:
+                        styles[i] = 'color: orange; font-weight: bold'
+            return styles
             
         df_event_trends = st.dataframe(
             supplier_trends.loc[:, output_cols_proj]
@@ -204,7 +233,7 @@ if "report_data" in st.session_state:
         )
 
         trends_rows = df_event_trends.selection["rows"]
-        if len(trends_rows) > 0:
+        if len(trends_rows) > 0 and trends_rows[0] < len(supplier_trends):
             selected_trend_row = trends_rows[0]
             selected_item = supplier_trends.iloc[selected_trend_row]
             variant_id = int(selected_item.item_id)
@@ -255,7 +284,10 @@ if "report_data" in st.session_state:
                     selected_item_rows = df_raw.query(f"displayed_date=='{selected_category}'")
                     st.dataframe(selected_item_rows.loc[:, ['cardname', 'quantity']].sort_values(by=['quantity'], ascending=False))
         
-        if st.button(f"Créer commande d'achat pour {supplier_name}"):
+        if st.button(
+            f"Créer commande d'achat pour {supplier_name}",
+            help="Seuls les articles critiques (couverture < 6 jours) seront inclus dans la commande.",
+        ):
             with st.spinner("Création de la commande en cours..."):
                 odoo_cache = init_odoo_cache()
                 api = odoo_cache._api
@@ -265,14 +297,15 @@ if "report_data" in st.session_state:
                     od.take_fun(lambda y: lambda x: y in x)('category_id', 187)]),odoo_cache.partners.values())
                 supplier_id = suppliers[0]['id'] if suppliers else None
                 if supplier_id:
-                    # Collect lines
+                    # Collect lines (critical items only: day_cover < 6)
                     lines_to_order = []
                     for row in supplier_trends.itertuples():
-                        item_id = row.tmpl_id
-                        pack_qty = row.pcb_achat
-                        qty = max(0, row.proj7d)
-                        if qty > 0:
-                            lines_to_order.append((item_id, qty, pack_qty))
+                        if pd.notna(row.day_cover) and row.day_cover < 6:
+                            item_id = row.tmpl_id
+                            pack_qty = row.pcb_achat
+                            qty = max(0, row.proj7d)
+                            if qty > 0:
+                                lines_to_order.append((item_id, qty, pack_qty))
                     if lines_to_order:
                         try:
                             tomorrow = dt.date.today() + dt.timedelta(days=1)
@@ -284,7 +317,7 @@ if "report_data" in st.session_state:
                         except Exception as e:
                             st.error(f"Échec de la création de la commande d'achat. Erreur: {e} \n {lines_to_order}")
                     else:
-                        st.warning("Aucun article avec une quantité à commander.")
+                        st.warning("Aucun article critique (couverture < 6 jours) avec une quantité à commander.")
                 else:
                     st.error(f"Impossible de trouver l'ID du fournisseur pour {supplier_name}.")
 

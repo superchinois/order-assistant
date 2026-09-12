@@ -62,13 +62,14 @@ class ReportBuilder:
 		buffer.write(summary_df.to_csv(sep=';', index=False))
 		buffer.write("\n")
 
+		critical_df = filtered_df.query("day_cover<=10")
 		for name in urgent_suppliers:
-			dataframe = filtered_df.query(f"supplier==@name").sort_values(by='day_cover').loc[:, output_cols_proj]
+			dataframe = critical_df.query(f"supplier==@name").sort_values(by='day_cover').loc[:, output_cols_proj]
 			buffer.write(f"## {name}\n")
 			buffer.write(dataframe.to_csv(sep=';', index=False))
 			buffer.write("\n")
 
-		other_suppliers = filtered_df.query("supplier in @not_urgent_suppliers")
+		other_suppliers = critical_df.query("supplier in @not_urgent_suppliers")
 		buffer.write(f"## Other suppliers\n")
 		buffer.write(other_suppliers.sort_values(by=['supplier', 'day_cover']).loc[:, output_cols_proj].to_csv(sep=';', index=False))
 
