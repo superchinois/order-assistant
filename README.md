@@ -26,9 +26,13 @@ The tool generates digestible overviews, creates interactive data tables to view
     ├── tools/                  # Interactive assistant tools
     │   ├── banking.py
     │   ├── forecast.py
-    │   ├── history.py          # Features the Order Assistant, PO creation, and Ollama integration
+    │   ├── history.py          # Features the Order Assistant, PO creation, coverage filtering, and Ollama integration
     │   ├── search.py
-    │   └── warehouses.py
+    │   └── warehouses.py       # Multi-supplier external warehouse orders with stock breakdown (LGS, RDT, BAD) and sales charts
+    ├── tests/                  # Unit tests
+    │   ├── test_discounts.py
+    │   ├── test_history.py
+    │   └── test_warehouses.py
     └── utils/                  # Shared utilities
         ├── config_utils.py     # Configuration, caching initialization, and environment vars
         ├── forecast_utils.py
@@ -82,3 +86,11 @@ To stop the running container, execute:
 ```bash
 docker-compose down
 ```
+
+## Running Tests
+
+To run the unit test suite inside the Docker container:
+```bash
+docker exec order-assistant-mystreamlit-1 python -m unittest discover tests
+```
+
