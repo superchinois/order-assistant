@@ -10,6 +10,7 @@ import utils.mongo_utils as mu
 from utils.config_utils import init_odoo_cache, init_mongo_dao, env_config
 from services.report_builder import ReportBuilder
 from data_connectors.sales_service import WarehouseItemsProjection
+from data_connectors.inventory_service import InventoryService
 
 output_cols = od.build_fields("""tmpl_id
 supplier
@@ -31,6 +32,35 @@ output_cols_proj=output_cols+['proj7d', 'proj14d','daily_sales_last_6d']
 st.set_page_config(page_title="Warehouses Assistant", layout="wide")
 st.title("📦 Warehouses orders")
 st.write("This page will assist to order products stored in external warehouses")
+
+if "selected_packages" not in st.session_state:
+    st.session_state["selected_packages"] = {}
+
+# Display summary of selected packages for order in an expandable container if any are selected
+if st.session_state["selected_packages"]:
+    with st.expander("🛒 Récapitulatif des colis sélectionnés pour commande", expanded=True):
+        summary_packages_df = pd.DataFrame(list(st.session_state["selected_packages"].values()))
+        # Sort by warehouse (e.g., LGS then RDT), then product and package name
+        summary_packages_df = summary_packages_df.sort_values(by=["warehouse", "product_name", "package_name"])
+        display_summary_cols = ["warehouse", "product_name", "package_name", "lot_name", "quantity", "uom", "location_name"]
+        available_cols = [c for c in display_summary_cols if c in summary_packages_df.columns]
+        st.dataframe(
+            summary_packages_df[available_cols].rename(columns={
+                "warehouse": "Entrepôt",
+                "product_name": "Article",
+                "package_name": "Colis",
+                "lot_name": "Lot",
+                "quantity": "Quantité",
+                "uom": "Unité",
+                "location_name": "Emplacement",
+            }),
+            use_container_width=True,
+            hide_index=True,
+        )
+        if st.button("Vider la sélection de colis"):
+            st.session_state["selected_packages"] = {}
+            st.rerun()
+
 cutoff=5
 if st.button("Générer le rapport Excel"):
     with st.spinner("Génération du rapport..."):
@@ -168,5 +198,50 @@ if "report_data_" in st.session_state:
                     selected_category = event['selection']['points'][0]['x']
                     selected_item_rows = df_raw.query(f"displayed_date=='{selected_category}'")
                     st.dataframe(selected_item_rows.loc[:, ['cardname', 'quantity']].sort_values(by=['quantity'], ascending=False))
+
+            # Package selection section for the selected item
+            st.subheader(f"📦 Colis disponibles en entrepôts externes (LGS / RDT) - {itemname}")
+            inv_service = InventoryService(odoo_cache)
+            available_pkgs = inv_service.get_orderable_packages(variant_id=variant_id)
+
+            if available_pkgs:
+                df_pkgs = pd.DataFrame(available_pkgs)
+                df_pkgs["Sélectionné"] = df_pkgs["quant_id"].apply(
+                    lambda qid: qid in st.session_state["selected_packages"]
+                )
+
+                cols_to_show = ["Sélectionné", "warehouse", "package_name", "lot_name", "quantity", "uom", "location_name"]
+                edited_pkgs = st.data_editor(
+                    df_pkgs[cols_to_show].rename(columns={
+                        "warehouse": "Entrepôt",
+                        "package_name": "Colis",
+                        "lot_name": "Lot",
+                        "quantity": "Quantité",
+                        "uom": "Unité",
+                        "location_name": "Emplacement",
+                    }),
+                    disabled=["Entrepôt", "Colis", "Lot", "Quantité", "Unité", "Emplacement"],
+                    key=f"editor_pkgs_{variant_id}",
+                    hide_index=True,
+                    use_container_width=True,
+                )
+
+                # Sync changes into st.session_state["selected_packages"]
+                changes_made = False
+                for idx, row in edited_pkgs.iterrows():
+                    pkg_data = available_pkgs[idx]
+                    qid = pkg_data["quant_id"]
+                    is_selected = row["Sélectionné"]
+                    if is_selected and qid not in st.session_state["selected_packages"]:
+                        st.session_state["selected_packages"][qid] = pkg_data
+                        changes_made = True
+                    elif not is_selected and qid in st.session_state["selected_packages"]:
+                        del st.session_state["selected_packages"][qid]
+                        changes_made = True
+
+                if changes_made:
+                    st.rerun()
+            else:
+                st.info(f"Aucun colis identifié disponible pour cet article dans LGS ou RDT.")
     else:
         st.info("Sélectionnez un ou plusieurs fournisseurs dans le tableau ci-dessus pour afficher leurs articles.")

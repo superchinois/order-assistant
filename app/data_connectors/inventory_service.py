@@ -49,6 +49,49 @@ def get_stock_quantities(odoo_api):
     squants = odoo_api.extract_from_odoo("stock.quant", [], sq_fields)
     return squants
 
+def extract_available_packages(squants, target_warehouses=('LGS', 'RDT'), variant_id=None):
+    """
+    Filter stock quants to orderable packages in specified external warehouses.
+    Returns a list of dicts with package details.
+    """
+    packages = []
+    for q in squants:
+        qty = q.get('quantity', 0)
+        if qty <= 0:
+            continue
+        pkg = q.get('package_id')
+        if not pkg or not isinstance(pkg, (list, tuple)) or len(pkg) < 2:
+            continue
+        loc = q.get('location_id')
+        loc_name = loc[1] if loc and isinstance(loc, (list, tuple)) and len(loc) > 1 else ''
+        wh = next((w for w in target_warehouses if loc_name.startswith(w)), None)
+        if not wh:
+            continue
+        prod = q.get('product_id')
+        prod_id = prod[0] if prod and isinstance(prod, (list, tuple)) else None
+        if variant_id is not None and prod_id != variant_id:
+            continue
+        prod_name = prod[1] if prod and isinstance(prod, (list, tuple)) and len(prod) > 1 else ''
+        lot = q.get('lot_id')
+        lot_name = lot[1] if lot and isinstance(lot, (list, tuple)) and len(lot) > 1 else ''
+        uom = q.get('product_uom_id')
+        uom_name = uom[1] if uom and isinstance(uom, (list, tuple)) and len(uom) > 1 else ''
+
+        packages.append({
+            'quant_id': q.get('id'),
+            'warehouse': wh,
+            'package_id': pkg[0],
+            'package_name': pkg[1],
+            'lot_name': lot_name,
+            'quantity': qty,
+            'uom': uom_name,
+            'product_id': prod_id,
+            'product_name': prod_name,
+            'location_name': loc_name,
+        })
+    return packages
+
+
 def get_stock_values(stocks, item_id):
     s2stock  = stocks['s2']
     s1stock  = stocks['s1']
@@ -106,6 +149,11 @@ class InventoryService:
         trends.loc[:, 'tmpl_id'] = [self.get_variant(r.item_id) for r in trends.itertuples()]
         stocks = self.get_current_stocks()
         return self.build_stock_merge(trends, stocks)
+
+    def get_orderable_packages(self, variant_id=None, target_warehouses=('LGS', 'RDT')):
+        squants = get_stock_quantities(self.odoo_api)
+        return extract_available_packages(squants, target_warehouses=target_warehouses, variant_id=variant_id)
+
 
 
 

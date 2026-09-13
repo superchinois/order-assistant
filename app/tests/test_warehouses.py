@@ -1,5 +1,6 @@
 import unittest
 import pandas as pd
+from data_connectors.inventory_service import extract_available_packages
 
 
 class TestWarehousesLogic(unittest.TestCase):
@@ -79,6 +80,95 @@ class TestWarehousesLogic(unittest.TestCase):
         s2 = dict(zip(r2.index, highlight_low_cover(r2)))
         self.assertEqual(s2['dscription'], '')
         self.assertEqual(s2['day_cover'], '')
+
+
+class TestPackageSelectionLogic(unittest.TestCase):
+    def setUp(self):
+        self.mock_quants = [
+            # Valid package in LGS
+            {
+                "id": 1001,
+                "product_id": [101, "[REF1] Product 1"],
+                "package_id": [501, "PACK-001"],
+                "location_id": [20, "LGS/Stock"],
+                "lot_id": [301, "LOT-A"],
+                "quantity": 25.0,
+                "product_uom_id": [1, "kg"],
+            },
+            # Valid package in RDT
+            {
+                "id": 1002,
+                "product_id": [101, "[REF1] Product 1"],
+                "package_id": [502, "PACK-002"],
+                "location_id": [21, "RDT/Stock"],
+                "lot_id": [302, "LOT-B"],
+                "quantity": 30.0,
+                "product_uom_id": [1, "kg"],
+            },
+            # Package without package_id (not orderable as package)
+            {
+                "id": 1003,
+                "product_id": [101, "[REF1] Product 1"],
+                "package_id": False,
+                "location_id": [20, "LGS/Stock"],
+                "lot_id": False,
+                "quantity": 10.0,
+                "product_uom_id": [1, "kg"],
+            },
+            # Quantity <= 0
+            {
+                "id": 1004,
+                "product_id": [101, "[REF1] Product 1"],
+                "package_id": [503, "PACK-003"],
+                "location_id": [20, "LGS/Stock"],
+                "lot_id": False,
+                "quantity": 0.0,
+                "product_uom_id": [1, "kg"],
+            },
+            # Internal warehouse (not LGS or RDT)
+            {
+                "id": 1005,
+                "product_id": [101, "[REF1] Product 1"],
+                "package_id": [504, "PACK-004"],
+                "location_id": [12, "s/s/2_Stock"],
+                "lot_id": False,
+                "quantity": 15.0,
+                "product_uom_id": [1, "kg"],
+            },
+            # Valid package in LGS for different product
+            {
+                "id": 1006,
+                "product_id": [102, "[REF2] Product 2"],
+                "package_id": [505, "PACK-005"],
+                "location_id": [20, "LGS/Stock"],
+                "lot_id": [303, "LOT-C"],
+                "quantity": 40.0,
+                "product_uom_id": [1, "kg"],
+            },
+        ]
+
+    def test_extract_available_packages_all(self):
+        packages = extract_available_packages(self.mock_quants)
+        self.assertEqual(len(packages), 3)
+        pack_ids = [p["package_id"] for p in packages]
+        self.assertListEqual(pack_ids, [501, 502, 505])
+
+    def test_extract_available_packages_by_variant(self):
+        packages = extract_available_packages(self.mock_quants, variant_id=101)
+        self.assertEqual(len(packages), 2)
+        whs = [p["warehouse"] for p in packages]
+        self.assertIn("LGS", whs)
+        self.assertIn("RDT", whs)
+
+    def test_selected_packages_summary_sorted_by_warehouse(self):
+        selected = [
+            {"warehouse": "RDT", "product_name": "Prod 1", "package_name": "P-RDT-1", "lot_name": "L1", "quantity": 10.0, "uom": "kg"},
+            {"warehouse": "LGS", "product_name": "Prod 2", "package_name": "P-LGS-1", "lot_name": "L2", "quantity": 20.0, "uom": "kg"},
+            {"warehouse": "RDT", "product_name": "Prod 3", "package_name": "P-RDT-2", "lot_name": "L3", "quantity": 15.0, "uom": "kg"},
+            {"warehouse": "LGS", "product_name": "Prod 1", "package_name": "P-LGS-2", "lot_name": "L4", "quantity": 5.0, "uom": "kg"},
+        ]
+        df = pd.DataFrame(selected).sort_values(by=["warehouse", "product_name", "package_name"])
+        self.assertListEqual(df["warehouse"].tolist(), ["LGS", "LGS", "RDT", "RDT"])
 
 
 if __name__ == "__main__":
