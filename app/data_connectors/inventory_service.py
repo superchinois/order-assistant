@@ -151,8 +151,15 @@ class InventoryService:
         return self.build_stock_merge(trends, stocks)
 
     def get_orderable_packages(self, variant_id=None, target_warehouses=('LGS', 'RDT')):
-        squants = get_stock_quantities(self.odoo_api)
+        sq_fields = ["id", "inventory_quantity", "location_id", "lot_id", "on_hand", "package_id", "product_id", "product_reference_code",
+                     "quantity", "product_uom_id", "inventory_quantity_set", "warehouse_id"]
+        # Filter server-side in Odoo to avoid downloading all stock quants across the whole company
+        domain = [('quantity', '>', 0), ('package_id', '!=', False)]
+        if variant_id is not None:
+            domain.append(('product_id', '=', variant_id))
+        squants = self.odoo_api.extract_from_odoo("stock.quant", domain, sq_fields)
         return extract_available_packages(squants, target_warehouses=target_warehouses, variant_id=variant_id)
+
 
 
 

@@ -36,32 +36,8 @@ st.write("This page will assist to order products stored in external warehouses"
 if "selected_packages" not in st.session_state:
     st.session_state["selected_packages"] = {}
 
-# Display summary of selected packages for order in an expandable container if any are selected
-if st.session_state["selected_packages"]:
-    with st.expander("🛒 Récapitulatif des colis sélectionnés pour commande", expanded=True):
-        summary_packages_df = pd.DataFrame(list(st.session_state["selected_packages"].values()))
-        # Sort by warehouse (e.g., LGS then RDT), then product and package name
-        summary_packages_df = summary_packages_df.sort_values(by=["warehouse", "product_name", "package_name"])
-        display_summary_cols = ["warehouse", "product_name", "package_name", "lot_name", "quantity", "uom", "location_name"]
-        available_cols = [c for c in display_summary_cols if c in summary_packages_df.columns]
-        st.dataframe(
-            summary_packages_df[available_cols].rename(columns={
-                "warehouse": "Entrepôt",
-                "product_name": "Article",
-                "package_name": "Colis",
-                "lot_name": "Lot",
-                "quantity": "Quantité",
-                "uom": "Unité",
-                "location_name": "Emplacement",
-            }),
-            use_container_width=True,
-            hide_index=True,
-        )
-        if st.button("Vider la sélection de colis"):
-            st.session_state["selected_packages"] = {}
-            st.rerun()
-
 cutoff=5
+
 if st.button("Générer le rapport Excel"):
     with st.spinner("Génération du rapport..."):
         odoo_cache = init_odoo_cache()
@@ -156,11 +132,19 @@ if "report_data_" in st.session_state:
 
             odoo_cache = init_odoo_cache()
             mongo_dao = init_mongo_dao()
-            today_date = mu.reset_to_midnight(dt.datetime.now())
-            since_date = mu.getStartDateOfPeriod(today_date, 10)
-            daily_data = list(mongo_dao.apply_aggregate(*mu.stock_moves_for_itemcodes([variant_id], since_date, today_date)))
+
+            # Cache daily sales data in session_state per item to avoid redundant Mongo queries on package clicks
+            cache_sales_key = f"daily_sales_{variant_id}"
+            if cache_sales_key not in st.session_state:
+                today_date = mu.reset_to_midnight(dt.datetime.now())
+                since_date = mu.getStartDateOfPeriod(today_date, 10)
+                daily_data = list(mongo_dao.apply_aggregate(*mu.stock_moves_for_itemcodes([variant_id], since_date, today_date)))
+                st.session_state[cache_sales_key] = (daily_data, today_date)
+            else:
+                daily_data, today_date = st.session_state[cache_sales_key]
 
             if daily_data:
+
                 df_raw = pd.DataFrame(daily_data)
                 df_raw['displayed_date'] = pd.to_datetime(df_raw['timestamp']).dt.strftime('%a %m-%d')
 
@@ -201,8 +185,13 @@ if "report_data_" in st.session_state:
 
             # Package selection section for the selected item
             st.subheader(f"📦 Colis disponibles en entrepôts externes (LGS / RDT) - {itemname}")
-            inv_service = InventoryService(odoo_cache)
-            available_pkgs = inv_service.get_orderable_packages(variant_id=variant_id)
+
+            # Cache packages for the selected item in session_state so toggling rows doesn't trigger Odoo RPC
+            cache_pkgs_key = f"available_pkgs_{variant_id}"
+            if cache_pkgs_key not in st.session_state:
+                inv_service = InventoryService(odoo_cache)
+                st.session_state[cache_pkgs_key] = inv_service.get_orderable_packages(variant_id=variant_id)
+            available_pkgs = st.session_state[cache_pkgs_key]
 
             if available_pkgs:
                 df_pkgs = pd.DataFrame(available_pkgs)
@@ -227,21 +216,40 @@ if "report_data_" in st.session_state:
                 )
 
                 # Sync changes into st.session_state["selected_packages"]
-                changes_made = False
                 for idx, row in edited_pkgs.iterrows():
                     pkg_data = available_pkgs[idx]
                     qid = pkg_data["quant_id"]
                     is_selected = row["Sélectionné"]
                     if is_selected and qid not in st.session_state["selected_packages"]:
                         st.session_state["selected_packages"][qid] = pkg_data
-                        changes_made = True
                     elif not is_selected and qid in st.session_state["selected_packages"]:
                         del st.session_state["selected_packages"][qid]
-                        changes_made = True
-
-                if changes_made:
-                    st.rerun()
             else:
                 st.info(f"Aucun colis identifié disponible pour cet article dans LGS ou RDT.")
     else:
         st.info("Sélectionnez un ou plusieurs fournisseurs dans le tableau ci-dessus pour afficher leurs articles.")
+
+# Display summary of selected packages at the bottom of the page
+if st.session_state.get("selected_packages"):
+    st.divider()
+    with st.expander("🛒 Récapitulatif des colis sélectionnés pour commande", expanded=True):
+        summary_packages_df = pd.DataFrame(list(st.session_state["selected_packages"].values()))
+        summary_packages_df = summary_packages_df.sort_values(by=["warehouse", "product_name", "package_name"])
+        display_summary_cols = ["warehouse", "product_name", "package_name", "lot_name", "quantity", "uom", "location_name"]
+        available_cols = [c for c in display_summary_cols if c in summary_packages_df.columns]
+        st.dataframe(
+            summary_packages_df[available_cols].rename(columns={
+                "warehouse": "Entrepôt",
+                "product_name": "Article",
+                "package_name": "Colis",
+                "lot_name": "Lot",
+                "quantity": "Quantité",
+                "uom": "Unité",
+                "location_name": "Emplacement",
+            }),
+            use_container_width=True,
+            hide_index=True,
+        )
+        if st.button("Vider la sélection de colis"):
+            st.session_state["selected_packages"] = {}
+            st.rerun()
