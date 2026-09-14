@@ -4,23 +4,38 @@ This project is a Streamlit-based web application designed as an **Order Assista
 
 The tool generates digestible overviews, creates interactive data tables to view summaries per supplier, exports to Excel, and allows users to seamlessly create Purchase Orders directly in Odoo.
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/):
+
+- **[docs/architecture.md](docs/architecture.md)** — system overview, data flow, core
+  concepts (trends, day cover, projections), caching, hard-coded Odoo identifiers.
+- **[docs/pages.md](docs/pages.md)** — user guide for every page
+  (Dashboard, Suppliers, Customers, Promos, Search, Forecast, Order Assistant,
+  Ext. Warehouses, Banking).
+- **[docs/configuration.md](docs/configuration.md)** — environment variables, Docker
+  deployment, tests, and operational notes.
+
 ## Directory Layout
 
 ```text
 .
 ├── Dockerfile                  # Instructions to build the Streamlit environment
 ├── docker-compose.yml          # Docker Compose configuration to easily spin up the app
-├── requirements.txt            # Python dependencies
+├── requirements.txt            # Top-level Python dependencies (odoo_client is pulled from GitHub)
+├── requirements.lock           # Pinned dependencies used by the Docker build
+├── .env.example                # Template of environment variables (copy to .env)
 └── app/                        # The main Streamlit application code
-    ├── streamlit_app.py        # Main entrypoint for Streamlit
+    ├── streamlit_app.py        # Main entrypoint for Streamlit (multipage navigation)
+    ├── bank_partner_mapping.csv# Bank statement → Odoo partner mapping (Banking page)
     ├── data_connectors/        # Handles connections to data sources
     │   ├── inventory_service.py # Fetches master data, stock levels, variants from Odoo
     │   └── sales_service.py     # Fetches sales data, calculates trends and projections
     ├── reports/                # Pages or modules rendering specific business reports
-    │   ├── customers.py
-    │   ├── dashboard.py
-    │   ├── discounts.py
-    │   └── suppliers.py
+    │   ├── customers.py        # Customer purchase history + partner ledger
+    │   ├── dashboard.py        # Calendar of incoming local purchase orders
+    │   ├── discounts.py        # Today's promotions from Odoo pricelists
+    │   └── suppliers.py        # Item movements per supplier (pivot, charts, drill-down)
     ├── services/               # Core business logic services
     │   └── report_builder.py   # Aggregates data and formats it into Excel or Text
     ├── tools/                  # Interactive assistant tools
@@ -35,15 +50,15 @@ The tool generates digestible overviews, creates interactive data tables to view
     │   └── test_warehouses.py
     └── utils/                  # Shared utilities
         ├── config_utils.py     # Configuration, caching initialization, and environment vars
-        ├── forecast_utils.py
-        ├── function_utils.py   # General-purpose helper functions
+        ├── forecast_utils.py   # Demand/forecast computations for the Forecast page
+        ├── function_utils.py   # Functional-style helpers (map/filter/take/compose...)
         ├── mcp_client.py       # Thin client for the MCP knowledge-base server (memory_query)
-        └── mongo_utils.py      # Optional MongoDB utilities (if configured)
+        └── mongo_utils.py      # MongoDB DAO, aggregation pipelines, date helpers
 ```
 
 ## Running the Application with Docker Compose
 
-The project includes a `docker-compose.yml` file to quickly run the Streamlit app. Note that the docker-compose file expects the application folder (`app`) to be mounted as a volume.
+The project includes a `docker-compose.yml` file to quickly run the Streamlit app. The application code is baked into the image, and the whole `.env` file is injected into the container as OS environment variables (`env_file:`).
 
 ### Configuration
 Copy the template and fill in your real credentials (the template ships with safe placeholder values):

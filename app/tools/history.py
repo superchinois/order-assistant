@@ -16,7 +16,7 @@ from data_connectors.sales_service import LocalSuppliersProjection
 import ollama
 
 
-DEFAULT_MODEL = "gemma4:31b-cloud"
+DEFAULT_MODEL = "glm-5.3-flash:cloud"
 output_cols = od.build_fields("""tmpl_id
 itemcode
 dscription

@@ -44,7 +44,7 @@ class ReportBuilder:
 			worksheet.set_column('B:B', to_size_col(2.2), None)
 			for name in urgent_suppliers:
 				dataframe = filtered_df.query(f"supplier==@name").sort_values(by='day_cover').loc[:, output_cols_proj]
-				sheetname=name.split(' ')[0]
+				sheetname=name.replace('/', ' ').split(' ')[0]
 				write_worksheet(writer, dataframe, sheetname, apply_format_fn)
 
 			other_suppliers = filtered_df.query("supplier in @not_urgent_suppliers")
