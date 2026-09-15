@@ -10,7 +10,12 @@ import utils.mongo_utils as mu
 from utils.config_utils import init_odoo_cache, init_mongo_dao, env_config
 from services.report_builder import ReportBuilder
 from data_connectors.sales_service import WarehouseItemsProjection
-from data_connectors.inventory_service import InventoryService
+from data_connectors.inventory_service import (
+    InventoryService,
+    get_transferred_package_ids,
+    get_variant_transfer_summary,
+)
+import utils.forecast_utils as fu
 
 output_cols = od.build_fields("""tmpl_id
 supplier
@@ -39,6 +44,11 @@ if "selected_packages" not in st.session_state:
 cutoff=5
 
 if st.button("Générer le rapport Excel"):
+    # Invalidate cached transfers and packages on report refresh
+    st.session_state.pop("ext_wh_transfers", None)
+    for key in list(st.session_state.keys()):
+        if key.startswith("available_pkgs_"):
+            del st.session_state[key]
     with st.spinner("Génération du rapport..."):
         odoo_cache = init_odoo_cache()
         mongo_dao = init_mongo_dao()
@@ -186,11 +196,34 @@ if "report_data_" in st.session_state:
             # Package selection section for the selected item
             st.subheader(f"📦 Colis disponibles en entrepôts externes (LGS / RDT) - {itemname}")
 
+            # Fetch active external warehouse transfers
+            cache_transfers_key = "ext_wh_transfers"
+            if cache_transfers_key not in st.session_state:
+                transfers_start_date = dt.datetime(dt.date.today().year, 1, 1)
+                st.session_state[cache_transfers_key] = fu.get_ext_wh_transfers(odoo_cache._api, transfers_start_date)
+            active_transfers = st.session_state[cache_transfers_key]
+
+            # In-transit transfer indicator for this variant
+            transfer_summary = get_variant_transfer_summary(active_transfers, variant_id)
+            pkg_cnt = transfer_summary["package_count"]
+            tot_qty = transfer_summary["total_quantity"]
+            if pkg_cnt > 0 and tot_qty > 0:
+                st.info(f"🚚 **En cours de transfert :** {pkg_cnt} colis ({tot_qty:.2f}) actuellement en transit depuis les entrepôts externes (exclus de la liste ci-dessous).")
+            elif pkg_cnt > 0:
+                st.info(f"🚚 **En cours de transfert :** {pkg_cnt} colis actuellement en transit depuis les entrepôts externes (exclus de la liste ci-dessous).")
+            elif tot_qty > 0:
+                st.info(f"🚚 **En cours de transfert :** {tot_qty:.2f} unités actuellement en transit depuis les entrepôts externes.")
+
+            # Exclude packages that are already subject to an active transfer
+            transferred_pkg_ids = get_transferred_package_ids(active_transfers)
+
             # Cache packages for the selected item in session_state so toggling rows doesn't trigger Odoo RPC
             cache_pkgs_key = f"available_pkgs_{variant_id}"
             if cache_pkgs_key not in st.session_state:
                 inv_service = InventoryService(odoo_cache)
-                st.session_state[cache_pkgs_key] = inv_service.get_orderable_packages(variant_id=variant_id)
+                st.session_state[cache_pkgs_key] = inv_service.get_orderable_packages(
+                    variant_id=variant_id, excluded_package_ids=transferred_pkg_ids
+                )
             available_pkgs = st.session_state[cache_pkgs_key]
 
             if available_pkgs:

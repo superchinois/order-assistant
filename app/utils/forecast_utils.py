@@ -160,7 +160,7 @@ def get_ext_wh_transfers(odoo_api, start_date):
 	_domain = build_odoo_all_conditions([['state','!=','done'],['picking_type_id', 'in' ,rdt_or_lgs]
 										 , ['date','>',start_date_str]])
 	wh_transfers = odoo_api.extract_from_odoo('stock.picking', _domain,['name', 'date','location_id', 'location_dest_id', 'picking_type_id', 'move_line_ids'])
-	aml_fields =  ['date', 'product_id','quantity', 'location_id', 'state', 'move_id', 'picking_id']
+	aml_fields =  ['date', 'product_id','quantity', 'location_id', 'state', 'move_id', 'picking_id', 'package_id']
 	transfer_moves = flatten(map(take('move_line_ids'), wh_transfers))
 	transfers = odoo_api.extract_from_odoo('stock.move.line', id_in(transfer_moves),aml_fields)
 	return transfers

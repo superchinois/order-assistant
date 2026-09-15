@@ -49,11 +49,46 @@ def get_stock_quantities(odoo_api):
     squants = odoo_api.extract_from_odoo("stock.quant", [], sq_fields)
     return squants
 
-def extract_available_packages(squants, target_warehouses=('LGS', 'RDT'), variant_id=None):
+def get_transferred_package_ids(transfers):
+    """
+    Extract set of package_ids present in active transfers (stock.move.line records).
+    """
+    pkg_ids = set()
+    for t in transfers:
+        pkg = t.get('package_id')
+        if pkg and isinstance(pkg, (list, tuple)) and len(pkg) > 0:
+            pkg_ids.add(pkg[0])
+        elif isinstance(pkg, int) and pkg:
+            pkg_ids.add(pkg)
+    return pkg_ids
+
+
+def get_variant_transfer_summary(transfers, variant_id):
+    """
+    Compute total packages and total quantity in transit for a specific variant.
+    """
+    package_count = 0
+    total_quantity = 0.0
+    for t in transfers:
+        prod = t.get('product_id')
+        prod_id = prod[0] if isinstance(prod, (list, tuple)) and len(prod) > 0 else prod
+        if prod_id == variant_id:
+            pkg = t.get('package_id')
+            if pkg:
+                package_count += 1
+            total_quantity += float(t.get('quantity', 0) or 0)
+    return {
+        "package_count": package_count,
+        "total_quantity": total_quantity,
+    }
+
+
+def extract_available_packages(squants, target_warehouses=('LGS', 'RDT'), variant_id=None, excluded_package_ids=None):
     """
     Filter stock quants to orderable packages in specified external warehouses.
     Returns a list of dicts with package details.
     """
+    excluded = set(excluded_package_ids) if excluded_package_ids else set()
     packages = []
     for q in squants:
         qty = q.get('quantity', 0)
@@ -61,6 +96,8 @@ def extract_available_packages(squants, target_warehouses=('LGS', 'RDT'), varian
             continue
         pkg = q.get('package_id')
         if not pkg or not isinstance(pkg, (list, tuple)) or len(pkg) < 2:
+            continue
+        if pkg[0] in excluded:
             continue
         loc = q.get('location_id')
         loc_name = loc[1] if loc and isinstance(loc, (list, tuple)) and len(loc) > 1 else ''
@@ -150,7 +187,7 @@ class InventoryService:
         stocks = self.get_current_stocks()
         return self.build_stock_merge(trends, stocks)
 
-    def get_orderable_packages(self, variant_id=None, target_warehouses=('LGS', 'RDT')):
+    def get_orderable_packages(self, variant_id=None, target_warehouses=('LGS', 'RDT'), excluded_package_ids=None):
         sq_fields = ["id", "inventory_quantity", "location_id", "lot_id", "on_hand", "package_id", "product_id", "product_reference_code",
                      "quantity", "product_uom_id", "inventory_quantity_set", "warehouse_id"]
         # Filter server-side in Odoo to avoid downloading all stock quants across the whole company
@@ -158,7 +195,7 @@ class InventoryService:
         if variant_id is not None:
             domain.append(('product_id', '=', variant_id))
         squants = self.odoo_api.extract_from_odoo("stock.quant", domain, sq_fields)
-        return extract_available_packages(squants, target_warehouses=target_warehouses, variant_id=variant_id)
+        return extract_available_packages(squants, target_warehouses=target_warehouses, variant_id=variant_id, excluded_package_ids=excluded_package_ids)
 
 
 

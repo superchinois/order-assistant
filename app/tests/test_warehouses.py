@@ -1,6 +1,10 @@
 import unittest
 import pandas as pd
-from data_connectors.inventory_service import extract_available_packages
+from data_connectors.inventory_service import (
+    extract_available_packages,
+    get_transferred_package_ids,
+    get_variant_transfer_summary,
+)
 
 
 class TestWarehousesLogic(unittest.TestCase):
@@ -159,6 +163,35 @@ class TestPackageSelectionLogic(unittest.TestCase):
         whs = [p["warehouse"] for p in packages]
         self.assertIn("LGS", whs)
         self.assertIn("RDT", whs)
+
+    def test_extract_available_packages_excludes_transferred_packages(self):
+        # Exclude package 501 (which belongs to variant 101)
+        packages = extract_available_packages(self.mock_quants, variant_id=101, excluded_package_ids={501})
+        self.assertEqual(len(packages), 1)
+        self.assertEqual(packages[0]["package_id"], 502)
+
+    def test_get_transferred_package_ids(self):
+        transfers = [
+            {"product_id": [101, "Prod 1"], "package_id": [501, "PACK-001"], "quantity": 25.0},
+            {"product_id": [102, "Prod 2"], "package_id": [505, "PACK-005"], "quantity": 40.0},
+            {"product_id": [103, "Prod 3"], "package_id": False, "quantity": 10.0},
+        ]
+        ids = get_transferred_package_ids(transfers)
+        self.assertEqual(ids, {501, 505})
+
+    def test_get_variant_transfer_summary(self):
+        transfers = [
+            {"product_id": [101, "Prod 1"], "package_id": [501, "PACK-001"], "quantity": 25.0},
+            {"product_id": [101, "Prod 1"], "package_id": [502, "PACK-002"], "quantity": 30.0},
+            {"product_id": [102, "Prod 2"], "package_id": [505, "PACK-005"], "quantity": 40.0},
+        ]
+        summary = get_variant_transfer_summary(transfers, variant_id=101)
+        self.assertEqual(summary["package_count"], 2)
+        self.assertEqual(summary["total_quantity"], 55.0)
+
+        summary_other = get_variant_transfer_summary(transfers, variant_id=999)
+        self.assertEqual(summary_other["package_count"], 0)
+        self.assertEqual(summary_other["total_quantity"], 0.0)
 
     def test_selected_packages_summary_sorted_by_warehouse(self):
         selected = [
