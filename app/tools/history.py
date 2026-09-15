@@ -172,9 +172,9 @@ if "report_xlsx" in st.session_state:
 
 if "report_data" in st.session_state:
     summary, trends = st.session_state["report_data"]
-    df_event = st.dataframe(summary, key="summary", on_select="rerun")
+    df_event = st.dataframe(summary, key="summary", on_select="rerun", selection_mode="single-row")
     rows_selection = df_event.selection["rows"]
-    if len(rows_selection)>0:
+    if len(rows_selection) > 0 and rows_selection[0] is not None and rows_selection[0] < len(summary):
         selected_row = rows_selection[0]
         supplier_name = summary.iloc[selected_row,:].supplier
 
@@ -229,11 +229,12 @@ if "report_data" in st.session_state:
                 "proj14d": "{:.0f}",
             }),
             on_select="rerun",
+            selection_mode="single-row",
             key="trends",
         )
 
         trends_rows = df_event_trends.selection["rows"]
-        if len(trends_rows) > 0 and trends_rows[0] < len(supplier_trends):
+        if len(trends_rows) > 0 and trends_rows[0] is not None and trends_rows[0] < len(supplier_trends):
             selected_trend_row = trends_rows[0]
             selected_item = supplier_trends.iloc[selected_trend_row]
             variant_id = int(selected_item.item_id)

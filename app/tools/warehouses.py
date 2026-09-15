@@ -134,7 +134,7 @@ if "report_data_" in st.session_state:
         )
 
         trends_rows = df_event_trends.selection["rows"]
-        if len(trends_rows) > 0 and trends_rows[0] < len(supplier_trends):
+        if len(trends_rows) > 0 and trends_rows[0] is not None and trends_rows[0] < len(supplier_trends):
             selected_trend_row = trends_rows[0]
             selected_item = supplier_trends.iloc[selected_trend_row]
             variant_id = int(selected_item.item_id)
