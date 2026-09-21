@@ -85,15 +85,32 @@ if "report_data_" in st.session_state:
     rows_selection = df_event.selection["rows"]
     if len(rows_selection) > 0:
         selected_suppliers = summary.iloc[rows_selection]["supplier"].tolist()
+
+        cutoff_choice = st.radio(
+            "Couverture de stock :",
+            options=["< 6 jours", "< 12 jours", "Tous les articles"],
+            index=0,
+            horizontal=True,
+            key="cutoff_choice_wh",
+        )
+
+        if cutoff_choice == "< 6 jours":
+            supplier_trends = trends.query("supplier in @selected_suppliers and day_cover < 6")
+            header_suffix = "Couverture < 6 jours"
+        elif cutoff_choice == "< 12 jours":
+            supplier_trends = trends.query("supplier in @selected_suppliers and day_cover < 12")
+            header_suffix = "Couverture < 12 jours"
+        else:
+            supplier_trends = trends.query("supplier in @selected_suppliers")
+            header_suffix = "Tous les articles"
+
+        supplier_trends = supplier_trends.sort_values(by=["supplier", "day_cover"])
+
         if len(selected_suppliers) == 1:
-            st.subheader(f"Articles from {selected_suppliers[0]}")
+            st.subheader(f"Articles from {selected_suppliers[0]} ({header_suffix})")
         else:
             suppliers_list_str = ", ".join(selected_suppliers)
-            st.subheader(f"Articles ({len(selected_suppliers)} fournisseurs sélectionnés : {suppliers_list_str})")
-
-        supplier_trends = trends.query("supplier in @selected_suppliers").sort_values(
-            by=["supplier", "day_cover"]
-        )
+            st.subheader(f"Articles ({len(selected_suppliers)} fournisseurs sélectionnés : {suppliers_list_str}) ({header_suffix})")
 
         def highlight_low_cover(row):
             styles = [''] * len(row.index)
