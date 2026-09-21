@@ -51,7 +51,7 @@ HAPI FRANCE
 SENGELE MARTIN SASU
 XIONG HAI GALASIE""")
         categs = ['FRAIS', 'SURGELES']
-        cold_filter = "day_cover<10 and supplier in @surg_frais_suppliers and categorie in @categs"
+        cold_filter = "day_cover<12 and supplier in @surg_frais_suppliers and categorie in @categs"
         return super().compute(trends_df, masterdata).query(cold_filter).sort_values(by='day_cover')
 
 class SalesService:
