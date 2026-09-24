@@ -42,6 +42,9 @@ for o in sorted(local_po, key=lambda x: x['date_planned']):
     arrival_day = po_values[2].split(' ')[0]
     po_id = po_values[4]
     partner_name = po_values[1]
+    po_name = po_values[0]
+    po_state = o.get('state', '')
+    state_suffix = " (Brouillon)" if po_state == 'draft' else ""
     po_url = f"{env_config()['ODOO_URL']}/odoo/purchase/{po_id}?debug=1"
 
     if arrival_day < today:
@@ -52,13 +55,16 @@ for o in sorted(local_po, key=lambda x: x['date_planned']):
         color = "#6f42c1"   # violet — future
 
     calendar_events.append({
-        "title": partner_name,
+        "title": f"{po_name} - {partner_name}{state_suffix}",
         "start": arrival_day,
         "backgroundColor": color,
         "borderColor": color,
         "extendedProps": {
             "po_url": po_url,
             "display_name": po_values[0],
+            "partner_name": partner_name,
+            "state": po_state,
+            "state_suffix": state_suffix,
             "partner_ref": po_values[3],
             "picking_type": po_values[5],
         }
@@ -106,5 +112,10 @@ if cal and cal.get("callback") == "eventClick":
     new_url = props.get("po_url", "")
     if new_url and st.session_state.get("clicked_url") != new_url:
         st.session_state["clicked_url"] = new_url
-        st.session_state["clicked_title"] = event.get("title", "")
+        clicked_po = props.get("display_name", "")
+        clicked_partner = props.get("partner_name", "")
+        clicked_state_suffix = props.get("state_suffix", "")
+        st.session_state["clicked_title"] = (
+            f"{clicked_po} - {clicked_partner}{clicked_state_suffix}" if clicked_po else event.get("title", "")
+        )
         st.rerun()
