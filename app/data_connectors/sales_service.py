@@ -108,7 +108,12 @@ def sales_for_items_between_dates(fromDate, toDate):
     return query
 
 def convert_to_tmpl_id(odoo_cache, variant_ids):
-    return _map(compose(take('id'), odoo_cache.variants.by_id), variant_ids)
+    def to_tmpl_id(variant_id):
+        item = odoo_cache.variants.by_id(variant_id)
+        return item['id'] if item else None
+
+    return _filter(lambda tmpl_id: tmpl_id is not None,
+                   _map(to_tmpl_id, variant_ids))
 
 def stock_moves_for_itemcodes(itemcodes, from_date: dt.datetime, to_date: dt.datetime):
     projected_f = ["_id", "item_id","partner_id", "itemcode", "dscription", "quantity", "docnum"]
