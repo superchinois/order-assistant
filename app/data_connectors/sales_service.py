@@ -145,6 +145,14 @@ def pivot_(dataframe):
         displayed_dates = _map(display_date_format, sorted(od.flatten(reordered_dates), reverse=True))
         return pivotted.loc[:, pivotted.columns.tolist()[:start_date_pos]+displayed_dates].copy()
 
+EXCLUDED_PICKING_TYPE_IDS = (79,)
+
+def _is_excluded_po(po, excluded_ids=EXCLUDED_PICKING_TYPE_IDS):
+    # picking_type_id is a many2one: [id, name] when set, False when unset.
+    # Unset picking types are kept; only the listed ids are filtered out.
+    picking_type = po.get('picking_type_id')
+    return bool(picking_type) and picking_type[0] in excluded_ids
+
 def get_ordered_local_itemids(odoo_cache, create_date, included_suppliers):
     # PURCHASES ORDERS
     recent_pos, po_items = get_ordered_items(odoo_cache, create_date.strftime("%Y-%m-%d"))
@@ -160,6 +168,7 @@ def get_ordered_items(odoo_cache, since_date_str):
     po_fields=['date_planned', 'display_name', 'partner_id', 'order_line', 'picking_ids',
                'receipt_status', 'state', 'partner_ref', 'picking_type_id']
     po = odoo_api.extract_from_odoo('purchase.order', ['&',['receipt_status','!=', 'full'], ['state', 'in', ['draft','sent','purchase']]],po_fields)
+    po = od._filter(lambda x: not _is_excluded_po(x), po)
     recent_po = od._filter_(po, [lambda x: x['date_planned'] if x['date_planned'] else '2000-01-01', od._gt(since_date_str)])
     items_in_po = od.flatten(_map(take('order_line'),recent_po))
     po_items = odoo_api.extract_from_odoo('purchase.order.line', od.id_in(items_in_po), ['name', 'order_id', 'product_qty', 'product_id'])

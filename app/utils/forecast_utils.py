@@ -1,6 +1,9 @@
 from .function_utils import _map, _filter, build_fields, merge_into, flatten
-from .function_utils import  id_in, nth, take, index_on_id, compose
+from .function_utils import  id_in, nth, take, compose
 from utils.mongo_utils import compute_months_dict_betweenDates, reset_to_midnight
+# Single implementation lives in data_connectors.sales_service; re-exported here
+# so existing `fu.get_ordered_items` call sites keep working.
+from data_connectors.sales_service import get_ordered_items
 from dateutil.relativedelta import relativedelta
 from dotenv import dotenv_values
 from collections import namedtuple
@@ -164,20 +167,6 @@ def get_ext_wh_transfers(odoo_api, start_date):
 	transfer_moves = flatten(map(take('move_line_ids'), wh_transfers))
 	transfers = odoo_api.extract_from_odoo('stock.move.line', id_in(transfer_moves),aml_fields)
 	return transfers
-
-def get_ordered_items(odoo_cache, since_date_str):
-	odoo_api = odoo_cache._api
-	# FETCH DATA FROM PURCHASE ORDERS
-	po_fields=['date_planned', 'display_name', 'partner_id', 'order_line', 'picking_ids',
-			   'receipt_status', 'state', 'partner_ref', 'picking_type_id']
-	po = odoo_api.extract_from_odoo('purchase.order', ['&',['receipt_status','!=', 'full'], ['state', 'in', ['draft','sent','purchase']]]
-	,po_fields)
-	recent_po = od._filter_(po, [lambda x: x['date_planned'] if x['date_planned'] else '2000-01-01', od._gt(since_date_str)])
-	items_in_po = flatten(_map(take('order_line'),recent_po))
-	po_items = odoo_api.extract_from_odoo('purchase.order.line', id_in(items_in_po), ['name', 'order_id', 'product_qty', 'product_id'])
-	po_items = merge_into(po_items, index_on_id(recent_po), 'order_id', ['date_planned', 'partner_id', 'display_name', 'state', 'picking_type_id'])
-	po_items = merge_into(po_items, odoo_cache.items.to_dict(), 'product_id', ['name'], renamed=['itemname'])
-	return recent_po, po_items
 
 def compute_days_ratio(date: dt.datetime):
 	ratios=[0, 0.2, 0.5, 0.7, 0.8, 1]
