@@ -1,7 +1,10 @@
 FROM python:3.12-slim
 
-RUN apt-get update -y
-RUN apt-get install -y libpython3-dev freetds-dev libpq-dev build-essential curl git \
+# Keep update + install in the SAME layer: if they are split, Docker reuses the
+# cached "update" layer and apt ends up with a stale index -> "Unable to locate package".
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpython3-dev freetds-dev libpq-dev build-essential curl git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./requirements.lock /app/requirements.lock
