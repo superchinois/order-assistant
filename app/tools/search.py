@@ -30,6 +30,7 @@ with st.container(width=1024):
 			st.write("Itemcode selected", itemid)
 			st.write("Stock sis restant : ", first_item['onhand'])
 			st.write('Prix ht unit', odoo_cache.items.by_id(_)['list_price'])
+			st.write('odoo page', f"https://sis-deployment.odoo.com/odoo/products/{itemid}?debug=1")
 			today=mu.reset_to_midnight(dt.datetime.now()+dt.timedelta(days=1))
 			if itemid:
 				item_sales = mongo_dao.compute_sales_for_itemcode({"item_id": itemid}, today-relativedelta(months=3), today)
