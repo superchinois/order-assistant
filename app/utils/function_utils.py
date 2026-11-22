@@ -311,9 +311,18 @@ def get_stock_pickings_after_id(odoo_api, picking_id, location_id):
     stock_pickings = odoo_api.extract_from_odoo('stock.picking', sm_domain, ['partner_id','move_ids'])
     return stock_pickings
     
+def to_odoo_datetime(value):
+    """odoo_client posts the call as JSON, so domain values that are dates must be
+    strings ('YYYY-MM-DD HH:MM:SS'); a datetime raises "not JSON serializable".
+    Strings pass through unchanged.
+    """
+    return value.strftime("%Y-%m-%d %H:%M:%S") if isinstance(value, dt.datetime) else value
+
 def get_stock_moves_from(odoo_api, location_id, start_date, end_date_excluded):
+    start_str = to_odoo_datetime(start_date)
+    end_str = to_odoo_datetime(end_date_excluded)
     sm_domain=['&','&','&',
-     ['date_done', '>=', start_date],['date_done', '<', end_date_excluded],['state', '=', 'done'],
+     ['date_done', '>=', start_str],['date_done', '<', end_str],['state', '=', 'done'],
      '|',['location_dest_id', '=', location_id],['location_id', '=', location_id]]
     stock_pickings = odoo_api.extract_from_odoo('stock.picking', sm_domain, ['partner_id','move_ids'])
     return stock_pickings

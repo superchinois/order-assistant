@@ -38,7 +38,7 @@
 - Test: `app/tests/test_fetch_date_branch.py` (create)
 
 **Interfaces:**
-- Produces: `fetch_data_from_odoo(odoo_cache, {'start_date': datetime, 'end_date': datetime}) -> list[dict]` — working; each dict has the same 12 keys as the `{'picking_id': …}` branch (`smid`, `docnum`, `docdate`, `item_id`, `itemcode`, `dscription`, `quantity`, `partner_id`, `cardname`, `seller_id`, `supplier`, `pcb_achat`).
+- Produces: `fetch_data_from_odoo(odoo_cache, {'start_date': datetime | str, 'end_date': datetime | str}) -> list[dict]` — working; each dict has the same 12 keys as the `{'picking_id': …}` branch (`smid`, `docnum`, `docdate`, `item_id`, `itemcode`, `dscription`, `quantity`, `partner_id`, `cardname`, `seller_id`, `supplier`, `pcb_achat`). Datetimes are formatted to `'%Y-%m-%d %H:%M:%S'` for the domain by `to_odoo_datetime`.
 - Consumes: `get_stock_moves_from(odoo_api, location_id, start_date, end_date_excluded)` (already correct, `function_utils.py:314`).
 
 - [ ] **Step 1: Write the failing tests**
@@ -138,7 +138,7 @@ In `app/utils/function_utils.py`, replace the body of the `elif 'start_date' in 
         stock_moves = get_stock_moves_from(odoo_api, from_client_location, start, end)
 ```
 
-The date is passed as a `datetime`; `xmlrpc` marshals it for Odoo, as `utils/forecast_utils.py:112` already does.
+The date is passed as a `datetime` and formatted to `'%Y-%m-%d %H:%M:%S'` before it reaches the domain. `odoo_client` posts JSON (not XML-RPC), so a datetime in the domain raises `TypeError: Object of type datetime is not JSON serializable`; `utils/forecast_utils.py:104-109` already formats its own date window for this reason.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
