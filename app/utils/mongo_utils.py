@@ -9,6 +9,15 @@ from utils import function_utils as od
 from collections import namedtuple
 
 MongoConfig = namedtuple('MongoConfig', ['config', 'date_format'])
+
+SYNC_STATE_COLLECTION = 'sync-state'
+SyncResult = namedtuple('SyncResult', ['mode', 'imported', 'window_start',
+                                       'window_end', 'remaining_days',
+                                       'watermark_before', 'watermark_after'])
+
+def naive_utc_now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+
 def reset_to_midnight(date: dt.datetime) -> dt.datetime:
     params = ["hour", "minute", "second", "microsecond"]
     return date.replace(**{k:0 for k in params})
@@ -165,6 +174,50 @@ class CacheDao:
         record = rows[0]
         record.pop('_id', None)
         return record
+
+    def get_state_collection(self):
+        return self.get_client()[self.config[self.DB]][SYNC_STATE_COLLECTION]
+
+    def get_sync_state(self):
+        return self.get_state_collection().find_one({'_id': self.config[self.COLLECTION]})
+
+    def set_sync_state(self, watermark: dt.datetime) -> None:
+        # $max is the never-backwards guarantee; a rewind press must not undo
+        # progress already recorded by a normal press.
+        self.get_state_collection().update_one(
+            {'_id': self.config[self.COLLECTION]},
+            {'$max': {'watermark': watermark}, '$set': {'updated_at': naive_utc_now()}},
+            upsert=True)
+
+    def sync_from_odoo(self, fetch=None, since=None, now=None,
+                       max_rows=1000, slice_days=14, overlap_hours=6):
+        fetch = fetch or (lambda query: od.fetch_data_from_odoo(self._odoo_cache, query))
+        now = now or naive_utc_now()
+        state = self.get_sync_state()
+        watermark_before = state['watermark'] if state else None
+
+        if since is not None:
+            start, mode = min(since, now), 'heal'
+        elif state is None:
+            start, mode = getStartDateOfPeriod(now, 10), 'bootstrap'
+        else:
+            start = state['watermark'] - dt.timedelta(hours=overlap_hours)
+            mode = 'incremental'
+
+        imported, cursor = 0, start
+        while cursor < now and imported < max_rows:
+            end = min(cursor + dt.timedelta(days=slice_days), now)
+            imported += self.importFromData(fetch({'start_date': cursor, 'end_date': end}))
+            cursor = end
+            # After the write for this slice, so a failed write leaves the
+            # watermark before the failed slice; before the loop re-tests the
+            # cursor, so an empty slice still advances.
+            self.set_sync_state(cursor)
+
+        final_state = self.get_sync_state()
+        return SyncResult('no_new' if imported == 0 else mode, imported, start, cursor,
+                          max(0, (now - cursor).days), watermark_before,
+                          final_state['watermark'] if final_state else None)
 
     def getSalesForItems(self, itemcodes, fromDate, toDate):
         return self.find_query(sales_for_items_between_dates(itemcodes, fromDate, toDate))
