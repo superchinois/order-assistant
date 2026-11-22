@@ -25,9 +25,9 @@ The connection URI is assembled as
 `mongodb://<user>:<password>@<host>:27017` in `utils/mongo_utils.build_mongo_configuration`.
 
 The `raw-data` collection documents need at minimum: `docnum`, `docdate`, `smid`
-(sorting id), `item_id`, `itemcode`, `dscription`, `quantity`, `partner_id`,
-`supplier`. Records are appended from Odoo stock pickings by the *Mettre à jour
-mouvements* button on the Suppliers page.
+(upsert key), `item_id`, `itemcode`, `dscription`, `quantity`, `partner_id`,
+`supplier`. Records are inserted or replaced (upserted) from Odoo stock pickings
+by the *Mettre à jour mouvements* button on the Suppliers page.
 
 `raw-data` documents are upserted on `smid`, so re-imports never duplicate rows.
 Two indexes are created on first use (`smid`, `docdate`); a **unique** index on
