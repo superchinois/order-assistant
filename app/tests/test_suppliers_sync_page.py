@@ -4,6 +4,7 @@ plotly is a runtime-only dependency of the page and is not installed in the test
 environment, so ``setUp`` stubs it in ``sys.modules`` — the same reasoning as the
 Streamlit patching in ``tests/test_discounts.py``.
 """
+import contextlib
 import datetime as dt
 import importlib
 import sys
@@ -72,6 +73,12 @@ class SuppliersPageTest(unittest.TestCase):
                 return []
             return _record
 
+        def record_container(name):
+            def _record(*args, **kwargs):
+                self.st_calls.append((name, args, kwargs))
+                return contextlib.nullcontext()
+            return _record
+
         self._patchers = [
             mock.patch.dict(sys.modules, PLOTLY_STUBS),
             mock.patch.object(config_utils, 'init_odoo_cache',
@@ -82,6 +89,8 @@ class SuppliersPageTest(unittest.TestCase):
         for name in ['set_page_config', 'title', 'header', 'caption', 'button',
                      'multiselect', 'date_input', 'success', 'info', 'warning']:
             self._patchers.append(mock.patch.object(streamlit, name, record(name)))
+        self._patchers.append(mock.patch.object(streamlit, 'container',
+                                                record_container('container')))
         for patcher in self._patchers:
             patcher.start()
             self.addCleanup(patcher.stop)
