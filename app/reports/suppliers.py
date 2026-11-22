@@ -24,13 +24,13 @@ def render_sync_result(result):
         return
     if result.mode == 'no_new':
         st.info(f"Aucun nouveau mouvement (curseur {result.window_start:%Y-%m-%d}).")
-    elif result.mode == 'bootstrap':
-        st.success(f"Premier import : {result.imported} mouvements "
-                   f"({result.window_start:%Y-%m-%d} → {result.window_end:%Y-%m-%d}).")
     elif result.remaining_days > 0:
         st.warning(f"{result.imported} mouvements importés "
                    f"({result.window_start:%Y-%m-%d} → {result.window_end:%Y-%m-%d}). "
-                   f"Il reste {result.remaining_days} jours — relancez.")
+                   f"Il reste {result.remaining_days} jour(s) — relancez.")
+    elif result.mode == 'bootstrap':
+        st.success(f"Premier import : {result.imported} mouvements "
+                   f"({result.window_start:%Y-%m-%d} → {result.window_end:%Y-%m-%d}).")
     else:
         st.success(f"{result.imported} mouvements importés "
                    f"({result.window_start:%Y-%m-%d} → {result.window_end:%Y-%m-%d}).")

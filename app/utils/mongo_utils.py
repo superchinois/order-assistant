@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import itertools
 import datetime as dt
+import math
 from utils.function_utils import _map, _eq, _filter, get_values
 from utils import function_utils as od
 from collections import namedtuple
@@ -205,6 +206,8 @@ class CacheDao:
             mode = 'incremental'
 
         imported, cursor = 0, start
+        # max_rows is a soft budget checked between slices: the slice that
+        # reaches it is imported whole, so the run may exceed it by up to one slice.
         while cursor < now and imported < max_rows:
             end = min(cursor + dt.timedelta(days=slice_days), now)
             imported += self.importFromData(fetch({'start_date': cursor, 'end_date': end}))
@@ -216,7 +219,8 @@ class CacheDao:
 
         final_state = self.get_sync_state()
         return SyncResult('no_new' if imported == 0 else mode, imported, start, cursor,
-                          max(0, (now - cursor).days), watermark_before,
+                          max(0, math.ceil((now - cursor).total_seconds() / 86400)),
+                          watermark_before,
                           final_state['watermark'] if final_state else None)
 
     def getSalesForItems(self, itemcodes, fromDate, toDate):

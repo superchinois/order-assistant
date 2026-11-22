@@ -30,6 +30,9 @@ class FakeDao:
         self._last = last
         self._state = state
         self.sync_calls = []
+        self.result = SyncResult('incremental', 3, dt.datetime(2026, 11, 1),
+                                 dt.datetime(2026, 11, 2), 0, None,
+                                 dt.datetime(2026, 11, 2))
 
     def last_record(self):
         return self._last
@@ -42,8 +45,7 @@ class FakeDao:
 
     def sync_from_odoo(self, since=None):
         self.sync_calls.append(since)
-        return SyncResult('incremental', 3, dt.datetime(2026, 11, 1),
-                          dt.datetime(2026, 11, 2), 0, None, dt.datetime(2026, 11, 2))
+        return self.result
 
 
 class FakePartners:
@@ -119,6 +121,22 @@ class SuppliersPageTest(unittest.TestCase):
 
         successes = self._calls('success')
         self.assertTrue(any('3' in str(args[0]) for args, _kwargs in successes))
+
+    def test_unfinished_bootstrap_warns_instead_of_reporting_success(self):
+        self.dao.result = SyncResult(
+            'bootstrap', 3, dt.datetime(2026, 11, 1), dt.datetime(2026, 11, 2),
+            2, None, dt.datetime(2026, 11, 2))
+        self._load()
+        callback = self.buttons['Mettre à jour mouvements']['on_click']
+        callback(*self.buttons['Mettre à jour mouvements']['args'])
+
+        self.st_calls.clear()
+        sys.modules.pop('reports.suppliers')
+        self._load()
+
+        warnings = self._calls('warning')
+        self.assertTrue(any('relancez' in str(args[0]) for args, _kwargs in warnings))
+        self.assertFalse(self._calls('success'))
 
     def test_rewind_button_passes_the_chosen_date_as_since(self):
         self._load()

@@ -136,6 +136,17 @@ class SyncFromOdooTest(unittest.TestCase):
         self.assertEqual(dao.get_sync_state()['watermark'],
                          start + dt.timedelta(days=42))
 
+    def test_sub_day_remainder_after_the_row_budget_reports_one_day(self):
+        since = NOW - dt.timedelta(days=14, hours=3)
+        dao = FakeDao()
+        fetch, queries = recording_fetch(lambda q: [{'smid': 1, 'docnum': 1}])
+
+        result = dao.sync_from_odoo(fetch=fetch, now=NOW, since=since, max_rows=1)
+
+        self.assertEqual(len(queries), 1)
+        self.assertEqual(result.imported, 1)
+        self.assertEqual(result.remaining_days, 1)
+
     def test_rewind_never_moves_the_watermark_backwards(self):
         watermark = dt.datetime(2026, 11, 18)
         dao = FakeDao(watermark_doc(watermark))
