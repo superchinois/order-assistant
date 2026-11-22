@@ -13,10 +13,27 @@ import streamlit as st
 
 
 
-def update_mongo(mongo_dao, odoo_cache):
-    docnum = mongo_dao.last_record()['docnum']
-    data_to_import = od.fetch_data_from_odoo(odoo_cache,{'picking_id':docnum})
-    mongo_dao.importFromData(data_to_import)
+def update_mongo(mongo_dao):
+    st.session_state['sync_result'] = mongo_dao.sync_from_odoo()
+
+def resync_since(mongo_dao, since):
+    st.session_state['sync_result'] = mongo_dao.sync_from_odoo(since=since)
+
+def render_sync_result(result):
+    if result is None:
+        return
+    if result.mode == 'no_new':
+        st.info(f"Aucun nouveau mouvement (curseur {result.window_start:%Y-%m-%d}).")
+    elif result.mode == 'bootstrap':
+        st.success(f"Premier import : {result.imported} mouvements "
+                   f"({result.window_start:%Y-%m-%d} → {result.window_end:%Y-%m-%d}).")
+    elif result.remaining_days > 0:
+        st.warning(f"{result.imported} mouvements importés "
+                   f"({result.window_start:%Y-%m-%d} → {result.window_end:%Y-%m-%d}). "
+                   f"Il reste {result.remaining_days} jours — relancez.")
+    else:
+        st.success(f"{result.imported} mouvements importés "
+                   f"({result.window_start:%Y-%m-%d} → {result.window_end:%Y-%m-%d}).")
 
 def set_convert_date(date_format, input_format="%Y-%m-%d"):
     def _from_string(date_string):
@@ -85,9 +102,18 @@ suppliers_map = {r['name']:r for r in suppliers}
 
 st.set_page_config(layout="wide")
 st.title('Sorties Article Par Fournisseurs')
-st.header(f"Last updated: {mongo_dao.last_record()['timestamp']}")
-st.button('Mettre à jour mouvements', on_click=update_mongo, args=[mongo_dao, odoo_cache])
+last = mongo_dao.last_record()
+state = mongo_dao.get_sync_state()
+st.header("Last updated: " + (last['timestamp'] if last else "never (MongoDB empty)"))
+st.caption("Dernière synchro: " + (f"{state['watermark']:%Y-%m-%d %H:%M}" if state else "jamais"))
+st.button('Mettre à jour mouvements', on_click=update_mongo, args=[mongo_dao])
 st.button('Mettre à jour stock', on_click=st.cache_resource.clear)
+rewind_date = st.date_input(
+    'Re-synchroniser depuis',
+    value=mu.getStartDateOfPeriod(dt.datetime.now(), 10).date())
+st.button('Re-synchroniser depuis cette date', on_click=resync_since,
+          args=[mongo_dao, dt.datetime.combine(rewind_date, dt.time.min)])
+render_sync_result(st.session_state.pop('sync_result', None))
 
 with st.container(width=1024):
     options = st.multiselect(
