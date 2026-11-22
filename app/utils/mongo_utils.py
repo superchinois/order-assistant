@@ -8,7 +8,7 @@ from utils.function_utils import _map, _eq, _filter, get_values
 from utils import function_utils as od
 from collections import namedtuple
 
-MongoConfig = namedtuple('MongoConfig', ['config','sorting_id', 'date_format'])
+MongoConfig = namedtuple('MongoConfig', ['config', 'date_format'])
 def reset_to_midnight(date: dt.datetime) -> dt.datetime:
     params = ["hour", "minute", "second", "microsecond"]
     return date.replace(**{k:0 for k in params})
@@ -24,7 +24,7 @@ MONGO_COLLECTION""")
     mg_values = od.build_fields(f"""mongodb://{mgconf['MONGO_USER']}:{mgconf['MONGO_PASSWORD']}@{mgconf['MONGO_HOST']}:27017
 {mgconf['MONGO_DATABASE']}
 {mgconf['MONGO_STOCK_COLLECTION']}""")
-    return MongoConfig({k:v for k,v in zip(mg_keys, mg_values)}, 'smid', "%Y-%m-%d %H:%M")
+    return MongoConfig({k:v for k,v in zip(mg_keys, mg_values)}, "%Y-%m-%d %H:%M")
 
 def getMondayOf(dtDate) -> dt.datetime:
     isocalendar = dtDate.isocalendar()
@@ -69,11 +69,11 @@ def convertSerieToDataArray(serie):
     # 
     return [[int(x.value/10**6),float(round(y,2)) if y==y else None] for x,y in serie.items()]
 
-def last_docnum(sorting_id: str, date_format: str, from_date: dt.datetime):
+def last_movement_pipeline(date_format: str):
     pipeline = [
-        {"$match":{"docdate":{"$gt":from_date}}},
-        {"$project":{sorting_id:1, "docnum":1, "timestamp":{"$dateToString": {"format":date_format, "date":"$docdate"}}}},
-        {"$sort":{sorting_id:pymongo.DESCENDING}},
+        {"$project":{"docnum":1, "docdate":1,
+                     "timestamp":{"$dateToString": {"format":date_format, "date":"$docdate"}}}},
+        {"$sort":{"docdate":pymongo.DESCENDING}},
         {"$limit":1}
     ]
     options={}
@@ -119,7 +119,6 @@ class CacheDao:
     
     def init_app(self, app) -> None:
         self.config={k:v for k,v in map(lambda k: (k, app.config[k]), self.keys)}
-        self._sorting_id = app.sorting_id
         self._date_format = app.date_format
         self._client = pymongo.MongoClient(self.config[self.URI])
         self.ensure_indexes()
@@ -160,11 +159,12 @@ class CacheDao:
         print(result.deleted_count)
 
     def last_record(self):
-        sinceDate=dt.datetime.now()-dt.timedelta(weeks=8)
-        docnum_obj = list(self.apply_aggregate(*last_docnum(self._sorting_id, self._date_format, sinceDate)))
-        if len(docnum_obj)>0:
-            value = docnum_obj[0].pop('_id', None)
-        return docnum_obj[0] 
+        rows = list(self.apply_aggregate(*last_movement_pipeline(self._date_format)))
+        if not rows:
+            return None
+        record = rows[0]
+        record.pop('_id', None)
+        return record
 
     def getSalesForItems(self, itemcodes, fromDate, toDate):
         return self.find_query(sales_for_items_between_dates(itemcodes, fromDate, toDate))
