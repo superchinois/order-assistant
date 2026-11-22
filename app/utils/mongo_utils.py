@@ -122,6 +122,8 @@ class CacheDao:
         self._sorting_id = app.sorting_id
         self._date_format = app.date_format
         self._client = pymongo.MongoClient(self.config[self.URI])
+        self.ensure_indexes()
+
     def get_client(self):
         return self._client
 
@@ -168,7 +170,21 @@ class CacheDao:
         return self.find_query(sales_for_items_between_dates(itemcodes, fromDate, toDate))
 
     def importFromData(self, data_to_import):
-        self.get_collection().insert_many(data_to_import)
+        documents = list(data_to_import)
+        if not documents:
+            return 0
+        operations = [pymongo.ReplaceOne({'smid': doc['smid']}, doc, upsert=True)
+                      for doc in documents]
+        self.get_collection().bulk_write(operations, ordered=False)
+        return len(documents)
+
+    def ensure_indexes(self):
+        collection = self.get_collection()
+        for field in ('smid', 'docdate'):
+            try:
+                collection.create_index(field)
+            except Exception:
+                pass
 
     def getSalesStatsforItem(self, itemcode, fromDate, toDate, movingAvg=0):
         df =pd.DataFrame(self.apply_aggregate(*stock_moves_daily_for_item(itemcode, fromDate, toDate)))
