@@ -27,10 +27,16 @@ order record (`ODOO_URL/odoo/purchase/<id>`).
 Per-supplier item movement analysis over the last **10 weeks**.
 
 1. **Update buttons**
-   - *Mettre à jour mouvements* — imports into MongoDB all stock moves newer than the
-     last stored document (`docnum`).
-   - *Mettre à jour stock* — clears the Streamlit caches so Odoo master data/stock is
-     re-fetched.
+   - *Mettre à jour mouvements* — imports Odoo `stock.picking` records by
+     `date_done`, in 14-day slices, up to 1000 rows per press; a long gap takes
+     several presses and the message says how many days remain. Progress is
+     stored in the `sync-state` collection (`watermark`).
+   - *Mettre à jour stock* — clears the Streamlit caches so Odoo master data/stock
+     is re-fetched.
+   - *Re-synchroniser depuis cette date* — re-imports from the chosen date
+     (default: the 10-week pivot anchor). Safe to repeat: rows are upserted on
+     `smid`. Use it to recover movements missed by the old id-based sync,
+     notably the remainder of a delivery split into several pickings.
 2. Select one or more **suppliers** (auto-completed from suppliers with recent sales,
    i.e. partner category **187**).
 3. Choose a **category** if the supplier sells several.

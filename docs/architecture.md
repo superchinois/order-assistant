@@ -13,6 +13,10 @@ combines three external systems:
 | **Ollama** (chat API) | LLM that turns the generated order report into a human-readable, mail-ready recommendation summary. |
 | **MCP knowledge base** (`understory`, Streamable-HTTP JSON-RPC) | Stores supplier delivery knowledge (lead times, order days, MOQs, promos). Queried via the `memory_query` tool. |
 
+Movements are fetched by validation date (`date_done`) on slices tracked by the
+`sync-state` watermark, never by picking id — a backorder validated after a later
+picking keeps an older id and would be invisible to an id cursor.
+
 ## Data flow
 
 ```text
@@ -58,6 +62,7 @@ Each page is a standalone script executed top-to-bottom by Streamlit on every re
 | Mongo DAO (`init_mongo_dao`) | `st.cache_resource` | Same |
 | Forecast page raw data | `st.session_state["_forecast_cache"]` | 5 minutes (`_CACHE_TTL = 300`) |
 | MCP delivery answers | `st.session_state["mcp_delivery::<supplier>"]` | Until "Rafraîchir" |
+| Sync watermark (`sync-state`) | MongoDB document, `$max` update | Until overwritten by a later sync |
 
 ## Core concepts
 

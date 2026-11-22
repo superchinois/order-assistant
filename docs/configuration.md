@@ -29,6 +29,16 @@ The `raw-data` collection documents need at minimum: `docnum`, `docdate`, `smid`
 `supplier`. Records are appended from Odoo stock pickings by the *Mettre à jour
 mouvements* button on the Suppliers page.
 
+`raw-data` documents are upserted on `smid`, so re-imports never duplicate rows.
+Two indexes are created on first use (`smid`, `docdate`); a **unique** index on
+`smid` is recommended once existing duplicates have been cleaned up, but is left
+to the operator because creating it fails while duplicates exist.
+
+The `sync-state` collection holds one document per synced collection
+(`_id: raw-data`) with the last `date_done` covered (`watermark`) and the last
+successful update time (`updated_at`). Deleting it makes the next press
+re-import from the 10-week anchor, which is safe but slow.
+
 ### Odoo
 
 | Variable | Description |
