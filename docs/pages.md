@@ -28,7 +28,8 @@ Per-supplier item movement analysis over the last **10 weeks**.
 
 1. **Update buttons**
    - *Mettre à jour mouvements* — imports Odoo `stock.picking` records by
-     `date_done`, in 14-day slices, up to 1000 rows per press; a long gap takes
+     `date_done`, in 14-day slices, stopping after completing the slice that
+     reaches roughly 1000 movements, so a busy slice can go over; a long gap takes
      several presses and the message says how many days remain. Progress is
      stored in the `sync-state` collection (`watermark`).
    - *Mettre à jour stock* — clears the Streamlit caches so Odoo master data/stock

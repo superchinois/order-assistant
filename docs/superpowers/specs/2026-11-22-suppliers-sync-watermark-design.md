@@ -117,7 +117,8 @@ no longer on the sync path.
 6. `CacheDao.sync_from_odoo(fetch=None, since=None, max_moves=1000, slice_days=14,
    overlap_hours=6)` — the policy, out of the page so it is unit-testable without
    Streamlit; `fetch` defaults to the date branch of `fetch_data_from_odoo` and is
-   injectable. Returns
+   injectable; `max_moves` is a soft budget checked between slices, not a hard row cap.
+   Returns
    `SyncResult(mode, imported, window_start, window_end, remaining_days,
    watermark_before, watermark_after)`.
 
@@ -132,6 +133,7 @@ no longer on the sync path.
        start, mode = state.watermark - overlap, 'incremental'
 
    imported, cursor = 0, start
+   # soft budget between slices, not a hard row cap
    while cursor < now and imported < max_moves:
        end = min(cursor + slice_days, now)
        imported += importFromData(fetch({'start_date': cursor, 'end_date': end}))
