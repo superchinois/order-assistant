@@ -379,8 +379,8 @@ def fetch_data_from_odoo(odoo_cache, query):
         last_picking = query['picking_id']
         stock_moves = get_stock_pickings_after_id(odoo_api, last_picking, from_client_location)
     elif 'start_date' in query :
-        start, end = _map(get_values(['start_date', 'end_date']), query)
-        stock_moves = get_stock_moves_from(from_client_location, start, end)
+        start, end = query['start_date'], query['end_date']
+        stock_moves = get_stock_moves_from(odoo_api, from_client_location, start, end)
     _moves = stock_moves
     to_partners_mv_mapping = build_partners_mv_map(_moves)
     all_moves = odoo_api.extract_from_odoo('stock.move', id_in(flatten(_map(take('move_ids'), _moves))), to_odoo_fields(smf))
