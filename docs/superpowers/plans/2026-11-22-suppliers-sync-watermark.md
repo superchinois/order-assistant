@@ -354,6 +354,7 @@ from utils.mongo_utils import CacheDao, last_movement_pipeline
 class FakeDao(CacheDao):
     def __init__(self, rows):
         self._rows = rows
+        self._date_format = '%Y-%m-%d %H:%M'
 
     def apply_aggregate(self, pipeline, options):
         return iter(self._rows)
@@ -516,6 +517,7 @@ class FakeDao(CacheDao):
     def __init__(self, state=None, fail_on_write=0):
         self.docs = {}
         self.queries = []
+        self.config = {'MONGO_COLLECTION': 'raw-data'}
         self._state = FakeStateCollection(state)
         self._fail_on_write = fail_on_write
         self._writes = 0
